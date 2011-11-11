@@ -1,5 +1,5 @@
 /*
- * fwdownloader.c - download simulator based on a simply echo server/client.
+ * fwdownloader.c - download simulator based on a simple echo server/client.
  * Copyright (C) 2011 Rafael Aquini <aquini@redhat.com>
  *
  * This program is free software: you can redistribute it and/or modify
@@ -13,9 +13,6 @@
  * GNU General Public License for more details.
  *
  * compiles with: gcc -Wall -O2 -o fwdownloader fwdownloader.c
- *
- * This sampling idea and technique was originally introduced by procps tools.
- * this code is just an example which remains consistant to the original tools.
  */
 #include <stdio.h>
 #include <stdlib.h>

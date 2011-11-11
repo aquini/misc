@@ -1,5 +1,5 @@
 /*
- * fwannoyer.c - traffic generator based on a simpy echo server/client scheme.
+ * fwannoyer.c - traffic generator based on a simple echo server/client scheme.
  * Copyright (C) 2011 Rafael Aquini <aquini@redhat.com>
  *
  * This program is free software: you can redistribute it and/or modify
@@ -13,9 +13,6 @@
  * GNU General Public License for more details.
  *
  * compiles with: gcc -Wall -O2 -o fwannoyer fwannoyer.c
- *
- * This sampling idea and technique was originally introduced by procps tools.
- * this code is just an example which remains consistant to the original tools.
  */
 #include <stdio.h>
 #include <stdlib.h>
