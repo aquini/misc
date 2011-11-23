@@ -236,16 +236,36 @@ static void walk_task(task_info_t *task)
 	close(pagemap_fd);
 }
 
-static void print_info(task_info_t *task)
+static void print_vma_info(vma_info_t *vmas)
 {
-	printf("\t\tPAGES\n");
-	printf("PID\t PRESENT  SWAP\t CMD\n");
+        while(vmas != NULL) {
+                printf("%lx-%lx %c%c%c%c %llx %x:%x %lu %lu %lu\n",
+                       vmas->vm_start, vmas->vm_end, vmas->vm_perms[0],
+                       vmas->vm_perms[1], vmas->vm_perms[2], vmas->vm_perms[3],
+                       vmas->pg_offset, vmas->devnode[0], vmas->devnode[1],
+                       vmas->inode, vmas->pres_pages, vmas->swap_pages);
+                vmas = vmas->next;
+        }
+}
+
+static void print_info(task_info_t *task, int mode)
+{
 	kpageflags_fd = checked_open(PROC_KPAGEFLAGS, O_RDONLY);
 	while(task != NULL) {
 		walk_task(task);
-		task_account_pages(task);
-		printf("%d\t %ld\t %ld\t %s\n", task->pid, task->pres_pages,
-			task->swap_pages, task->cmdline);
+		switch (mode) {
+		case INFO_LIST:
+			task_account_pages(task);
+			printf("%d\t %lu\t %lu\t %s\n",
+			       task->pid, task->pres_pages,
+			       task->swap_pages, task->cmdline);
+			break;
+		case INFO_MAPS:
+			printf("PID: %d COMM: %s\n", task->pid, task->cmdline);
+			print_vma_info(task->mm);
+			printf("=========================================\n\n");
+			break;
+		}
 		task = task->next;
 	}
 	close(kpageflags_fd);
@@ -276,19 +296,49 @@ int main(int argc, char *argv[])
 	task_info_t *list_head = NULL;
 	task_info_t task;
 	page_size = getpagesize();
+	int opt, mode, pid;
 	DIR *d;
 	struct dirent *de;
 
-	d = opendir("/proc");
+	mode = pid = 0;
 
-	while ((de = readdir(d)))
-		if (de->d_name[0] >= '0' && de->d_name[0] <= '9') {
-			task = get_task_info(atoi(de->d_name));
+	while ((opt=getopt_long(argc, argv, s_opts, l_opts, NULL)) != -1) {
+		switch (opt) {
+		case 'l':
+		case 'm':
+			/* selects the printout mode */
+			mode = opt;
+			break;
+		case 'p':
+			pid = atoi(optarg);
+			task = get_task_info(pid);
 			append_task(&list_head, task);
+			break;
+		case '?':
+		case -1:
+			/* done with options */
+			break;
 		}
+	}
 
-	closedir(d);
-	print_info(list_head);
+	if (!pid) {
+		d = opendir("/proc");
+		while ((de = readdir(d)))
+			if (de->d_name[0] >= '0' && de->d_name[0] <= '9') {
+				task = get_task_info(atoi(de->d_name));
+				append_task(&list_head, task);
+			}
+		closedir(d);
+	}
+	switch (mode) {
+	case 'l':
+	case 0:
+		print_info(list_head, INFO_LIST);
+		break;
+	case 'm':
+		print_info(list_head, INFO_MAPS);
+		break;
+	}
 	release_memory(list_head);
 	return 0;
 }

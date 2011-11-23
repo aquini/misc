@@ -37,6 +37,19 @@
 #include <sys/mount.h>
 #include <sys/statfs.h>
 
+/* Description of long options for getopt_long. */
+static const struct option l_opts[] = {
+   { "pid", 1, NULL, 'p' },
+   { "maps", 0, NULL, 'm' },
+   { "list", 0, NULL, 'l' },
+};
+
+/* Description of short options for getopt_long. */
+static const char* const s_opts = "p:ml";
+
+#define	INFO_LIST  0
+#define	INFO_MAPS  1
+
 #define BATCH			128
 #define KPAGEFLAGS_BATCH	(BATCH << 10)
 #define PAGEMAP_BATCH		(BATCH << 10)
