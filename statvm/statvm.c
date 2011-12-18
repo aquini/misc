@@ -23,24 +23,24 @@
 typedef struct vma_info vma_info_t;
 struct vma_info {
 	vma_info_t *next;
-	unsigned long vm_start;
-	unsigned long vm_end;
-	unsigned char vm_perms[4];
-	unsigned long long pg_offset;
-	unsigned int devnode[2];
-	unsigned long inode;
-	unsigned long pres_pages;
-	unsigned long swap_pages;
+	long unsigned int	 vm_start;
+	long unsigned int	 vm_end;
+	unsigned char		 vm_perms[4];
+	short unsigned int	 devnode[2];
+	long unsigned int	 pg_offset;
+	long unsigned int	 inode;
+	long unsigned int	 pres_pages;
+	long unsigned int	 swap_pages;
 };
 
 typedef struct task_info task_info_t;
 struct task_info {
-	task_info_t *next;
-	int pid;
-	char *cmdline;
-	vma_info_t *mm;
-	unsigned long pres_pages;
-	unsigned long swap_pages;
+	task_info_t		 *next;
+	long unsigned int	 pid;
+	char			 *cmdline;
+	vma_info_t		 *mm;
+	long unsigned int	 pres_pages;
+	long unsigned int	 swap_pages;
 };
 
 static void append_vma(vma_info_t **headref, vma_info_t vma_node)
@@ -99,7 +99,7 @@ vma_info_t *get_vma_info(int pid)
 	}
 
 	while (fgets(buffer, sizeof(buffer), fd) != NULL) {
-		n = sscanf(buffer, "%lx-%lx %c%c%c%c %llx %x:%x %lu",
+		n = sscanf(buffer, "%lx-%lx %c%c%c%c %lx %hu:%hu %lu",
 			   &vma.vm_start, &vma.vm_end, &vma.vm_perms[0],
 			   &vma.vm_perms[1], &vma.vm_perms[2], &vma.vm_perms[3],
 			   &vma.pg_offset, &vma.devnode[0], &vma.devnode[1],
@@ -219,7 +219,7 @@ static void walk_task(task_info_t *task)
 	unsigned long index = 0;
 	vma_info_t *vma = task->mm;
 
-        sprintf(buffer, "/proc/%d/pagemap", task->pid);
+        sprintf(buffer, "/proc/%ld/pagemap", task->pid);
         pagemap_fd = checked_open(buffer, O_RDONLY);
 
 	while (vma != NULL) {
@@ -239,7 +239,7 @@ static void walk_task(task_info_t *task)
 static void print_vma_info(vma_info_t *vmas)
 {
         while(vmas != NULL) {
-                printf("%lx-%lx %c%c%c%c %llx %x:%x %lu %lu %lu\n",
+                printf("%lx-%lx %c%c%c%c %lx %hu:%hu %lu %lu %lu\n",
                        vmas->vm_start, vmas->vm_end, vmas->vm_perms[0],
                        vmas->vm_perms[1], vmas->vm_perms[2], vmas->vm_perms[3],
                        vmas->pg_offset, vmas->devnode[0], vmas->devnode[1],
@@ -256,12 +256,12 @@ static void print_info(task_info_t *task, int mode)
 		switch (mode) {
 		case INFO_LIST:
 			task_account_pages(task);
-			printf("%d\t %lu\t %lu\t %s\n",
+			printf("%ld\t %lu\t %lu\t %s\n",
 			       task->pid, task->pres_pages,
 			       task->swap_pages, task->cmdline);
 			break;
 		case INFO_MAPS:
-			printf("PID: %d COMM: %s\n", task->pid, task->cmdline);
+			printf("PID: %ld COMM: %s\n", task->pid, task->cmdline);
 			print_vma_info(task->mm);
 			printf("=========================================\n\n");
 			break;
