@@ -1,0 +1,23 @@
+# Default C compiler options.
+CFLAGS 		= -O2 -g -Wall
+
+# C source files.
+SOURCES 	= statvm.c 
+
+# Corresponding object files.
+OBJECTS 	= $(SOURCES:.c=.o)
+
+.PHONY: 	all clean
+
+# Default target: build everything.
+all: 	statvm
+
+# Clean up build products.
+clean:
+	rm -f $(OBJECTS) statvm
+
+spor: 	$(OBJECTS)
+	$(CC) $(CFLAGS) -Wl -o $@ $^ 
+
+$(OBJECTS): 	statvm.c statvm.h
+
