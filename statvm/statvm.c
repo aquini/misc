@@ -1,6 +1,6 @@
 /*
  * statvm.c - collects memory statistics for processes in the system.
- * Copyright (C) 2011, 2012, 2013  Rafael Aquini <aquini@redhat.com>
+ * Copyright (C) 2013  Rafael Aquini <aquini@redhat.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -50,18 +50,20 @@ static void append_vma(vma_info_t **headref, vma_info_t vma_node)
 	vma_info_t *new;
 
 	new = malloc(sizeof(vma_info_t));
-	*new = vma_node;
-	new->next = NULL;
-	new->pres_pages = 0;
-	new->swap_pages = 0;
+	if (new) {
+		*new = vma_node;
+		new->next = NULL;
+		new->pres_pages = 0;
+		new->swap_pages = 0;
 
-	if (current == NULL) {
-		*headref = new;
-	} else {
-		while (current->next != NULL)
-			current = current->next;
+		if (current == NULL) {
+			*headref = new;
+		} else {
+			while (current->next != NULL)
+				current = current->next;
 
-		current->next = new;
+			current->next = new;
+		}
 	}
 }
 
@@ -71,17 +73,53 @@ static void append_task(task_info_t **headref, task_info_t task_node)
 	task_info_t *new;
 
 	new = malloc(sizeof(task_info_t));
-	*new = task_node;
-	new->next = NULL;
+	if (new) {
+		*new = task_node;
+		new->next = NULL;
 
-	if (current == NULL) {
-		*headref = new;
-	} else {
-		while (current->next != NULL)
-			current = current->next;
+		if (current == NULL) {
+			*headref = new;
+		} else {
+			while (current->next != NULL)
+				current = current->next;
 
-		current->next = new;
+			current->next = new;
+		}
 	}
+}
+
+char *get_mapping_name(const char *mapbuf)
+{
+	char *cp, *mapname;
+	int len;
+
+	cp = strchr(mapbuf,'/');
+	if (cp) {
+		len = strlen(cp);
+		mapname = malloc(len);
+		if (mapname)
+			snprintf(mapname, len, "%s", cp);
+
+		goto out;
+	}
+
+	cp = strrchr(mapbuf,'[');
+	if (cp) {
+		len = strlen(cp);
+		mapname = malloc(len);
+		if (mapname)
+			snprintf(mapname, len, "%s", cp);
+
+		goto out;
+	}
+
+	cp = "[anon] ";
+	len = strlen(cp);
+	mapname = malloc(len);
+	if (mapname)
+		snprintf(mapname, len, "%s", cp);
+out:
+	return mapname;
 }
 
 vma_info_t *get_vma_info(task_info_t *task)
@@ -108,8 +146,10 @@ vma_info_t *get_vma_info(task_info_t *task)
 			   &vma.inode);
 		vma.next = NULL;
 
-		if (n > 1)
+		if (n > 1) {
+			vma.map_name = get_mapping_name(buffer);
 			append_vma(&vma_head, vma);
+		}
 	}
 
 	fclose(fd);
@@ -135,7 +175,8 @@ task_info_t get_task_info(int pid)
 
 	len = strlen(buffer);
 	cmd = malloc(len);
-	snprintf(cmd, len, "%s", buffer);
+	if (cmd)
+		snprintf(cmd, len, "%s", buffer);
 
 	task.next = NULL;
 	task.pid = pid;
@@ -248,11 +289,12 @@ static void walk_task(task_info_t *task)
 static void print_vma_info(vma_info_t *vmas)
 {
         while(vmas != NULL) {
-                printf("0x%016lx %8lukB %c%c%c%c %hu:%hu %lu %lu %lu\n",
+                printf("0x%016lx %8lukB %c%c%c%c %hu:%hu %lu %lu %lu %s\n",
                        vmas->vm_start, ((vmas->vm_end - vmas->vm_start) >> 10),
 		       vmas->vm_perms[0], vmas->vm_perms[1], vmas->vm_perms[2],
 		       vmas->vm_perms[3], vmas->devnode[0], vmas->devnode[1],
-		       vmas->inode, vmas->pres_pages, vmas->swap_pages);
+		       vmas->inode, vmas->pres_pages, vmas->swap_pages,
+		       vmas->map_name);
                 vmas = vmas->next;
         }
 }
