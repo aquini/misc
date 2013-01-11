@@ -1,6 +1,6 @@
 /*
  * statvm.c - collects memory statistics for processes in the system.
- * Copyright (C) 2011 Rafael Aquini <aquini@redhat.com>
+ * Copyright (C) 2011, 2012, 2013  Rafael Aquini <aquini@redhat.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -22,7 +22,8 @@
 
 typedef struct vma_info vma_info_t;
 struct vma_info {
-	vma_info_t *next;
+	vma_info_t		 *next;
+	char			 *map_name;
 	long unsigned int	 vm_start;
 	long unsigned int	 vm_end;
 	unsigned char		 vm_perms[4];
@@ -83,11 +84,12 @@ static void append_task(task_info_t **headref, task_info_t task_node)
 	}
 }
 
-vma_info_t *get_vma_info(int pid)
+vma_info_t *get_vma_info(task_info_t *task)
 {
 	int n;
 	FILE *fd;
 	char buffer[BUFFER_SIZE];
+	int pid = task->pid;
 	vma_info_t *vma_head = NULL;
 	vma_info_t vma;
 
@@ -98,7 +100,7 @@ vma_info_t *get_vma_info(int pid)
 		exit(1);
 	}
 
-	while (fgets(buffer, sizeof(buffer), fd) != NULL) {
+	while (fgets(buffer, BUFFER_SIZE, fd) != NULL) {
 		n = sscanf(buffer, "%lx-%lx %c%c%c%c %lx %hu:%hu %lu",
 			   &vma.vm_start, &vma.vm_end, &vma.vm_perms[0],
 			   &vma.vm_perms[1], &vma.vm_perms[2], &vma.vm_perms[3],
@@ -119,19 +121,26 @@ task_info_t get_task_info(int pid)
 	task_info_t task;
 	int fd, len;
 	char buffer[BUFFER_SIZE], *cmd;
+
 	snprintf(buffer, sizeof(buffer), "/proc/%d/comm", pid);
 	fd = open(buffer, O_RDONLY);
-	len = read(fd, buffer, sizeof(buffer));
+	if (fd < 0) {
+		perror(buffer);
+		exit(1);
+	}
+
+	len = read(fd, buffer, BUFFER_SIZE);
 	close(fd);
 	buffer[len] = '\0';
 
-	cmd = malloc(strlen(buffer));
-	snprintf(cmd, strlen(buffer), "%s", buffer);
+	len = strlen(buffer);
+	cmd = malloc(len);
+	snprintf(cmd, len, "%s", buffer);
 
 	task.next = NULL;
 	task.pid = pid;
 	task.cmdline = cmd;
-	task.mm = get_vma_info(pid);
+	task.mm = get_vma_info(&task);
 
 	return task;
 }
@@ -155,7 +164,7 @@ static void add_page(unsigned long voffset, unsigned long offset,
 		     uint64_t flags, vma_info_t *vma)
 {
 	flags = kpageflags_flags(flags);
-	if (!bit_mask_ok)
+	if (!bit_mask_ok(flags))
 		return;
 
 	vma->pres_pages++;
@@ -239,11 +248,11 @@ static void walk_task(task_info_t *task)
 static void print_vma_info(vma_info_t *vmas)
 {
         while(vmas != NULL) {
-                printf("%lx-%lx %c%c%c%c %lx %hu:%hu %lu %lu %lu\n",
-                       vmas->vm_start, vmas->vm_end, vmas->vm_perms[0],
-                       vmas->vm_perms[1], vmas->vm_perms[2], vmas->vm_perms[3],
-                       vmas->pg_offset, vmas->devnode[0], vmas->devnode[1],
-                       vmas->inode, vmas->pres_pages, vmas->swap_pages);
+                printf("0x%016lx %8lukB %c%c%c%c %hu:%hu %lu %lu %lu\n",
+                       vmas->vm_start, ((vmas->vm_end - vmas->vm_start) >> 10),
+		       vmas->vm_perms[0], vmas->vm_perms[1], vmas->vm_perms[2],
+		       vmas->vm_perms[3], vmas->devnode[0], vmas->devnode[1],
+		       vmas->inode, vmas->pres_pages, vmas->swap_pages);
                 vmas = vmas->next;
         }
 }
@@ -253,17 +262,21 @@ static void print_info(task_info_t *task, int mode)
 	kpageflags_fd = checked_open(PROC_KPAGEFLAGS, O_RDONLY);
 	while(task != NULL) {
 		walk_task(task);
+		task_account_pages(task);
 		switch (mode) {
 		case INFO_LIST:
-			task_account_pages(task);
-			printf("%ld\t %lu\t %lu\t %s\n",
-			       task->pid, task->pres_pages,
-			       task->swap_pages, task->cmdline);
+			if (task->pres_pages > 0)
+				printf("%8ld %10lu %10lu %s\n",
+					task->pid, task->pres_pages,
+					task->swap_pages, task->cmdline);
 			break;
 		case INFO_MAPS:
-			printf("PID: %ld COMM: %s\n", task->pid, task->cmdline);
-			print_vma_info(task->mm);
-			printf("=========================================\n\n");
+			if (task->pres_pages > 0) {
+				printf("PID: %ld COMM: %s\n",
+					task->pid, task->cmdline);
+				print_vma_info(task->mm);
+				printf("=================================\n\n");
+			}
 			break;
 		}
 		task = task->next;
