@@ -363,6 +363,13 @@ void release_memory(task_info_t *head)
 	}
 }
 
+
+static void print_usage(const char *program_name)
+{
+	fprintf (stderr, usage_template, program_name);
+	return;
+}
+
 int main(int argc, char *argv[])
 {
 	task_info_t *list_head = NULL;
@@ -386,6 +393,9 @@ int main(int argc, char *argv[])
 			task = get_task_info(pid);
 			append_task(&list_head, task);
 			break;
+		case 'h':
+			print_usage(argv[0]);
+			return -1;
 		case '?':
 		case -1:
 			/* done with options */

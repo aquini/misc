@@ -43,10 +43,21 @@ static const struct option l_opts[] = {
    { "pid", 1, NULL, 'p' },
    { "maps", 0, NULL, 'm' },
    { "list", 0, NULL, 'l' },
+   { "help", 0, NULL, 'h' },
 };
 
 /* Description of short options for getopt_long. */
-static const char* const s_opts = "p:ml";
+static const char* const s_opts = "p:mlh";
+
+
+/* */
+static const char* const usage_template =
+   "Usage: %s [ options ]\n"
+   "   -h, --help : Print this information screen.\n"
+   "   -l, --list : Dump info for the task list, similarly to 'ps' (default)\n"
+   "   -m, --maps : Dump info for the task list, similarly to 'pmap'\n"
+   "   -p, --pid <pid-#> : Restrict the dump out info for <pid-#> only,"
+   " instead of doing it for all process list (as in default mode)\n\n";
 
 #define	INFO_LIST  0
 #define	INFO_MAPS  1
