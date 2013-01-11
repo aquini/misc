@@ -53,7 +53,7 @@ int main(int argc, char *argv[])
 
 	addr = shmat(shmid, NULL, SHM_RDONLY);
 
-	sprintf(cmd, "grep -E \"Vm(Size|RSS|PTE)|Name\" /proc/%d/status",
+	sprintf(cmd, "grep -E \"Vm(Size|RSS|PTE)|Name|Pid\" /proc/%d/status",
 		 getpid());
 	system(cmd);
 	getc(stdin);

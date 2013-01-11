@@ -18,6 +18,7 @@
  * * Copyright (C) 2009 Intel corporation
  * * Authors: Wu Fengguang <fengguang.wu@intel.com>
  */
+#define _GNU_SOURCE         /* See feature_test_macros(7) */
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>

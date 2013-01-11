@@ -1,6 +1,6 @@
 /*
  * statvm.c - collects memory statistics for processes in the system.
- * Copyright (C) 2013  Rafael Aquini <aquini@redhat.com>
+ * Copyright (C) 2011  Rafael Aquini <aquini@redhat.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -88,36 +88,34 @@ static void append_task(task_info_t **headref, task_info_t task_node)
 	}
 }
 
-char *get_mapping_name(const char *mapbuf)
+char *get_mapping_name(const char *mapbuf, vma_info_t * vma)
 {
-	char *cp, *mapname;
+	char *cp, *mapname = NULL;
 	int len;
 
-	cp = strchr(mapbuf,'/');
+	cp = strchr(mapbuf, '/');
+	if (cp) {
+		if (strstr(mapbuf, "/SYSV"))
+			asprintf(&mapname, "[shmid: %lu]", vma->inode);
+		else {
+			len = strlen(cp);
+			mapname = malloc(len);
+			if (mapname)
+				snprintf(mapname, len, "%s", cp);
+		}
+		goto out;
+	}
+
+	cp = strrchr(mapbuf, '[');
 	if (cp) {
 		len = strlen(cp);
 		mapname = malloc(len);
 		if (mapname)
 			snprintf(mapname, len, "%s", cp);
-
 		goto out;
 	}
 
-	cp = strrchr(mapbuf,'[');
-	if (cp) {
-		len = strlen(cp);
-		mapname = malloc(len);
-		if (mapname)
-			snprintf(mapname, len, "%s", cp);
-
-		goto out;
-	}
-
-	cp = "[anon] ";
-	len = strlen(cp);
-	mapname = malloc(len);
-	if (mapname)
-		snprintf(mapname, len, "%s", cp);
+	asprintf(&mapname, "[anon]");
 out:
 	return mapname;
 }
@@ -147,7 +145,7 @@ vma_info_t *get_vma_info(task_info_t *task)
 		vma.next = NULL;
 
 		if (n > 1) {
-			vma.map_name = get_mapping_name(buffer);
+			vma.map_name = get_mapping_name(buffer, &vma);
 			append_vma(&vma_head, vma);
 		}
 	}
@@ -288,15 +286,27 @@ static void walk_task(task_info_t *task)
 
 static void print_vma_info(vma_info_t *vmas)
 {
+	unsigned long virt_kb, virt_total = 0;
+	unsigned long pres_kb, pres_total = 0;
+	unsigned long swap_kb, swap_total = 0;
+
         while(vmas != NULL) {
-                printf("0x%016lx %8lukB %c%c%c%c %hu:%hu %lu %lu %lu %s\n",
-                       vmas->vm_start, ((vmas->vm_end - vmas->vm_start) >> 10),
-		       vmas->vm_perms[0], vmas->vm_perms[1], vmas->vm_perms[2],
-		       vmas->vm_perms[3], vmas->devnode[0], vmas->devnode[1],
-		       vmas->inode, vmas->pres_pages, vmas->swap_pages,
-		       vmas->map_name);
+		virt_kb = ((vmas->vm_end - vmas->vm_start) >> 10);
+		virt_total += virt_kb;
+		pres_kb = ((vmas->pres_pages * page_size) >> 10);
+		pres_total += pres_kb;
+		swap_kb = ((vmas->swap_pages * page_size) >> 10);
+		swap_total += swap_kb;
+
+                printf("0x%016lx %8lu %8lu %6lu %c%c%c%c %s\n",
+			vmas->vm_start,	virt_kb, pres_kb, swap_kb,
+			vmas->vm_perms[0], vmas->vm_perms[1],
+			vmas->vm_perms[2], vmas->vm_perms[3], vmas->map_name);
+
                 vmas = vmas->next;
         }
+	printf("%18s %8lu %8lu %6lu\n", "Total:",
+		 virt_total, pres_total, swap_total);
 }
 
 static void print_info(task_info_t *task, int mode)
@@ -308,14 +318,20 @@ static void print_info(task_info_t *task, int mode)
 		switch (mode) {
 		case INFO_LIST:
 			if (task->pres_pages > 0)
-				printf("%8ld %10lu %10lu %s\n",
-					task->pid, task->pres_pages,
-					task->swap_pages, task->cmdline);
+				printf("%7ld %10lu %10lu %s\n",
+					task->pid,
+					((task->pres_pages * page_size) >> 10),
+					((task->swap_pages * page_size) >> 10),
+					task->cmdline);
 			break;
 		case INFO_MAPS:
 			if (task->pres_pages > 0) {
 				printf("PID: %ld COMM: %s\n",
 					task->pid, task->cmdline);
+				printf("%18s %8s %8s %6s %4s %s\n",
+					"Address", "VirtSz", "Rss",
+					"Swap", "mode", "Mapping");
+
 				print_vma_info(task->mm);
 				printf("=================================\n\n");
 			}
@@ -337,6 +353,7 @@ void release_memory(task_info_t *head)
 		while(vma != NULL) {
 			oldvma = vma;
 			vma = vma->next;
+			free(oldvma->map_name);
 			free(oldvma);
 		}
 		oldpid = pid;
@@ -388,6 +405,7 @@ int main(int argc, char *argv[])
 	switch (mode) {
 	case 'l':
 	case 0:
+		printf("%7s %10s %10s %s\n", "PID", "RSS", "SWAP", "COMM");
 		print_info(list_head, INFO_LIST);
 		break;
 	case 'm':
