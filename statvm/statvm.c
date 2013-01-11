@@ -117,30 +117,22 @@ vma_info_t *get_vma_info(int pid)
 task_info_t get_task_info(int pid)
 {
 	task_info_t task;
-	FILE *fd;
-	char *cmd = NULL;
-	char buffer[BUFFER_SIZE];
+	int fd, len;
+	char buffer[BUFFER_SIZE], *cmd;
+	snprintf(buffer, sizeof(buffer), "/proc/%d/comm", pid);
+	fd = open(buffer, O_RDONLY);
+	len = read(fd, buffer, sizeof(buffer));
+	close(fd);
+	buffer[len] = '\0';
 
-	sprintf(buffer, "/proc/%d/cmdline", pid);
-	fd = fopen(buffer, "r");
-	if (fd <= 0) {
-		perror(buffer);
-		exit(1);
-	}
-
-	if (fgets(buffer, BUFFER_SIZE, fd) != NULL) {
-		int len = strlen(buffer);
-		cmd = malloc(len);
-		sscanf(buffer, "%s", cmd);
-	}
+	cmd = malloc(strlen(buffer));
+	snprintf(cmd, strlen(buffer), "%s", buffer);
 
 	task.next = NULL;
 	task.pid = pid;
 	task.cmdline = cmd;
 	task.mm = get_vma_info(pid);
-	task.pres_pages = task.swap_pages = 0;
 
-	fclose(fd);
 	return task;
 }
 

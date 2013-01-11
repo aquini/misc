@@ -17,7 +17,7 @@ clean:
 	rm -f $(OBJECTS) statvm
 
 statvm:	$(OBJECTS)
-	$(CC) $(CFLAGS) -o $@ $^ 
+	$(CC) $(CFLAGS) -Wl -o $@ $^ 
 
 $(OBJECTS): 	statvm.c statvm.h
 
