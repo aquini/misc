@@ -21,12 +21,15 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <string.h>
+#include <sys/ipc.h>
+#include <sys/shm.h>
+
 #define MB 1024*1024
 
 int main(int argc, char *argv[])
 {
-	void *memblock = NULL;
-	int counter = 0;
+	void *addr, *memblock = NULL;
+	int shmid, counter = 0;
 	char cmd[64];
 	while (1) {
 		memblock = (void *)malloc(MB);
@@ -43,9 +46,17 @@ int main(int argc, char *argv[])
 
 		counter++;
 	}
+
+	shmid = shmget(IPC_PRIVATE, 42, IPC_CREAT | 0666);
+	if(shmid==-1)
+		return -1;
+
+	addr = shmat(shmid, NULL, SHM_RDONLY);
+
 	sprintf(cmd, "grep -E \"Vm(Size|RSS|PTE)|Name\" /proc/%d/status",
 		 getpid());
 	system(cmd);
 	getc(stdin);
+	shmctl(shmid, IPC_RMID, NULL);
 	return 0;
 }
