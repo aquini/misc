@@ -32,6 +32,8 @@ struct vma_info {
 	long unsigned int	 inode;
 	long unsigned int	 pres_pages;
 	long unsigned int	 swap_pages;
+	long unsigned int	 active_pgs;
+	long unsigned int	 inactive_pgs;
 };
 
 typedef struct task_info task_info_t;
@@ -42,6 +44,8 @@ struct task_info {
 	vma_info_t		 *mm;
 	long unsigned int	 pres_pages;
 	long unsigned int	 swap_pages;
+	long unsigned int	 active_pgs;
+	long unsigned int	 inactive_pgs;
 };
 
 static void append_vma(vma_info_t **headref, vma_info_t vma_node)
@@ -55,6 +59,8 @@ static void append_vma(vma_info_t **headref, vma_info_t vma_node)
 		new->next = NULL;
 		new->pres_pages = 0;
 		new->swap_pages = 0;
+		new->active_pgs = 0;
+		new->inactive_pgs = 0;
 
 		if (current == NULL) {
 			*headref = new;
@@ -188,15 +194,21 @@ static void task_account_pages(task_info_t *task)
 {
 	unsigned long pres = 0;
 	unsigned long swap = 0;
+	unsigned long active = 0;
+	unsigned long inactive = 0;
 	vma_info_t *vma = task->mm;
 
 	while(vma != NULL) {
 		pres += vma->pres_pages;
 		swap += vma->swap_pages;
+		active += vma->active_pgs;
+		inactive += vma->inactive_pgs;
 		vma = vma->next;
 	}
 	task->pres_pages = pres;
 	task->swap_pages = swap;
+	task->active_pgs = active;
+	task->inactive_pgs = inactive;
 }
 
 static void add_page(unsigned long voffset, unsigned long offset,
@@ -205,6 +217,11 @@ static void add_page(unsigned long voffset, unsigned long offset,
 	flags = kpageflags_flags(flags);
 	if (!bit_mask_ok(flags))
 		return;
+
+	if (flags & KPF_ACTIVE)
+		vma->active_pgs++;
+	else
+		vma->inactive_pgs++;
 
 	vma->pres_pages++;
 }
@@ -289,6 +306,8 @@ static void print_vma_info(vma_info_t *vmas)
 	unsigned long virt_kb, virt_total = 0;
 	unsigned long pres_kb, pres_total = 0;
 	unsigned long swap_kb, swap_total = 0;
+	unsigned long active_kb, active_total = 0;
+	unsigned long inactive_kb, inactive_total = 0;
 
         while(vmas != NULL) {
 		virt_kb = ((vmas->vm_end - vmas->vm_start) >> 10);
@@ -297,16 +316,22 @@ static void print_vma_info(vma_info_t *vmas)
 		pres_total += pres_kb;
 		swap_kb = ((vmas->swap_pages * page_size) >> 10);
 		swap_total += swap_kb;
+		active_kb = ((vmas->active_pgs * page_size) >> 10);
+		active_total += active_kb;
+		inactive_kb = ((vmas->inactive_pgs * page_size) >> 10);
+		inactive_total += inactive_kb;
 
-                printf("0x%016lx %8lu %8lu %6lu %c%c%c%c %s\n",
-			vmas->vm_start,	virt_kb, pres_kb, swap_kb,
+		printf("0x%016lx %8lu %8lu %6lu %6lu %8lu %c%c%c%c %s\n",
+			vmas->vm_start,	virt_kb, pres_kb,
+			active_kb, inactive_kb, swap_kb,
 			vmas->vm_perms[0], vmas->vm_perms[1],
 			vmas->vm_perms[2], vmas->vm_perms[3], vmas->map_name);
 
-                vmas = vmas->next;
+		vmas = vmas->next;
         }
-	printf("%18s %8lu %8lu %6lu\n", "Total:",
-		 virt_total, pres_total, swap_total);
+	printf("%18s %8lu %8lu %6lu %6lu %8lu\n", "Total:",
+		 virt_total, pres_total,
+		 active_total, inactive_total, swap_total);
 }
 
 static void print_info(task_info_t *task, int mode)
@@ -318,19 +343,21 @@ static void print_info(task_info_t *task, int mode)
 		switch (mode) {
 		case INFO_LIST:
 			if (task->pres_pages > 0)
-				printf("%7ld %10lu %10lu %s\n",
-					task->pid,
-					((task->pres_pages * page_size) >> 10),
-					((task->swap_pages * page_size) >> 10),
-					task->cmdline);
+				printf("%7ld %8lu %8lu %8lu %8lu %s\n",
+				       task->pid,
+				       ((task->pres_pages * page_size) >> 10),
+				       ((task->active_pgs * page_size) >> 10),
+				       ((task->inactive_pgs * page_size) >> 10),
+				       ((task->swap_pages * page_size) >> 10),
+				       task->cmdline);
 			break;
 		case INFO_MAPS:
 			if (task->pres_pages > 0) {
 				printf("PID: %ld COMM: %s\n",
 					task->pid, task->cmdline);
-				printf("%18s %8s %8s %6s %4s %s\n",
-					"Address", "VirtSz", "Rss",
-					"Swap", "mode", "Mapping");
+				printf("%18s %8s %8s %6s %6s %8s %4s %s\n",
+					"Address", "VirtSz", "Rss", "Active",
+					"Inactv", "Swap", "mode", "Mapping");
 
 				print_vma_info(task->mm);
 				printf("=================================\n\n");
@@ -415,7 +442,8 @@ int main(int argc, char *argv[])
 	switch (mode) {
 	case 'l':
 	case 0:
-		printf("%7s %10s %10s %s\n", "PID", "RSS", "SWAP", "COMM");
+		printf("%7s %8s %8s %8s %8s %s\n",
+		       "PID", "RSS", "ACTIVE", "INACTIVE", "SWAP", "COMM");
 		print_info(list_head, INFO_LIST);
 		break;
 	case 'm':
