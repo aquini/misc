@@ -402,11 +402,18 @@ int main(int argc, char *argv[])
 	task_info_t *list_head = NULL;
 	task_info_t task;
 	page_size = getpagesize();
+	uid_t uid = getuid();
 	int opt, mode, pid;
 	DIR *d;
 	struct dirent *de;
 
 	mode = pid = 0;
+
+	if (uid) {
+		printf("WARN: Insufficient user privileges for uid: %d\n", uid);
+		print_usage(argv[0]);
+		return -1;
+	}
 
 	while ((opt=getopt_long(argc, argv, s_opts, l_opts, NULL)) != -1) {
 		switch (opt) {
