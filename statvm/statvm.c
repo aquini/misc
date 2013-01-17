@@ -337,6 +337,11 @@ static void print_vma_info(vma_info_t *vmas)
 static void print_info(task_info_t *task, int mode)
 {
 	kpageflags_fd = checked_open(PROC_KPAGEFLAGS, O_RDONLY);
+
+	if (mode == INFO_LIST)
+		printf("%7s %8s %8s %8s %8s %s\n",
+		       "PID", "RSS", "ACTIVE", "INACTIVE", "SWAP", "COMM");
+
 	while(task != NULL) {
 		walk_task(task);
 		task_account_pages(task);
@@ -393,7 +398,7 @@ void release_memory(task_info_t *head)
 
 static void print_usage(const char *program_name)
 {
-	fprintf (stderr, usage_template, program_name);
+	fprintf(stderr, usage_template, program_name);
 	return;
 }
 
@@ -446,17 +451,18 @@ int main(int argc, char *argv[])
 			}
 		closedir(d);
 	}
+
 	switch (mode) {
 	case 'l':
 	case 0:
-		printf("%7s %8s %8s %8s %8s %s\n",
-		       "PID", "RSS", "ACTIVE", "INACTIVE", "SWAP", "COMM");
 		print_info(list_head, INFO_LIST);
 		break;
 	case 'm':
 		print_info(list_head, INFO_MAPS);
 		break;
 	}
+
 	release_memory(list_head);
+
 	return 0;
 }
