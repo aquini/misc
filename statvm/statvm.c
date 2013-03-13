@@ -166,7 +166,7 @@ task_info_t get_task_info(int pid)
 	int fd, len;
 	char buffer[BUFFER_SIZE], *cmd;
 
-	snprintf(buffer, sizeof(buffer), "/proc/%d/comm", pid);
+	snprintf(buffer, sizeof(buffer), "/proc/%d/cmdline", pid);
 	fd = open(buffer, O_RDONLY);
 	if (fd < 0) {
 		perror(buffer);
@@ -175,9 +175,8 @@ task_info_t get_task_info(int pid)
 
 	len = read(fd, buffer, BUFFER_SIZE);
 	close(fd);
-	buffer[len] = '\0';
 
-	len = strlen(buffer);
+	len = strlen(buffer) + 1;
 	cmd = malloc(len);
 	if (cmd)
 		snprintf(cmd, len, "%s", buffer);
